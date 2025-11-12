@@ -80,7 +80,7 @@ async function run() {
     await client.connect();
     const db = client.db("travel_ease_db");
     const vehiclesCollection = db.collection("vehicles");
-    const myBidsCollection = db.collection("myBids");
+    const myBookingsCollection = db.collection("myBookings");
     const usersCollection = db.collection("users");
 
     // jwt related apis
@@ -173,15 +173,40 @@ async function run() {
     app.patch("/vehicles/:id", async (req, res) => {
       const id = req.params.id;
       const updatedVehicle = req.body;
-      const query = { _id: new ObjectId(id) };
-      const update = {
-        $set: {
-          name: updatedVehicle.name,
-          price: updatedVehicle.price,
-        },
-      };
-      const result = await vehiclesCollection.updateOne(query, update);
-      res.send(result);
+
+      try {
+        const filter = { _id: new ObjectId(id) };
+
+        // Verify ownership (security)
+        const existingVehicle = await vehiclesCollection.findOne(filter);
+        if (!existingVehicle) {
+          return res.status(404).send({ message: "Vehicle not found" });
+        }
+
+        // Allow only the owner to update
+        if (existingVehicle.userEmail !== updatedVehicle.userEmail) {
+          return res.status(403).send({ message: "Unauthorized update" });
+        }
+
+        const update = {
+          $set: {
+            vehicleName: updatedVehicle.vehicleName,
+            owner: updatedVehicle.owner,
+            categories: updatedVehicle.categories, // ✅ fixed key
+            pricePerDay: updatedVehicle.pricePerDay,
+            location: updatedVehicle.location,
+            availability: updatedVehicle.availability,
+            description: updatedVehicle.description,
+            coverImage: updatedVehicle.coverImage,
+          },
+        };
+
+        const result = await vehiclesCollection.updateOne(filter, update);
+        res.send(result);
+      } catch (error) {
+        console.error("Error updating vehicle:", error);
+        res.status(500).send({ message: "Server error" });
+      }
     });
 
     app.delete("/vehicles/:id", async (req, res) => {
@@ -192,7 +217,7 @@ async function run() {
     });
 
     // BOOKINGS APIs - GET user's bookings
-    app.get("/my-bookings", verifyFireBaseToken, async (req, res) => {
+    app.get("/myBookings", verifyFireBaseToken, async (req, res) => {
       try {
         const email = req.query.email;
 
@@ -202,7 +227,9 @@ async function run() {
         }
 
         const query = { userEmail: email };
-        const cursor = myBidsCollection.find(query).sort({ bookingDate: -1 });
+        const cursor = myBookingsCollection
+          .find(query)
+          .sort({ bookingDate: -1 });
         const result = await cursor.toArray();
         res.send(result);
       } catch (error) {
@@ -211,7 +238,7 @@ async function run() {
     });
 
     // BOOKINGS APIs - POST create new booking (overriding old endpoint)
-    app.post("/bookings", verifyFireBaseToken, async (req, res) => {
+    app.post("/myBookings", verifyFireBaseToken, async (req, res) => {
       try {
         const newBooking = req.body;
         const { vehicleId, userEmail } = newBooking;
@@ -222,7 +249,7 @@ async function run() {
         }
 
         // Check if user already booked this vehicle
-        const existingBooking = await myBidsCollection.findOne({
+        const existingBooking = await myBookingsCollection.findOne({
           vehicleId: vehicleId,
           userEmail: userEmail,
         });
@@ -236,7 +263,7 @@ async function run() {
         // Add booking timestamp
         newBooking.bookingDate = new Date();
 
-        const result = await myBidsCollection.insertOne(newBooking);
+        const result = await myBookingsCollection.insertOne(newBooking);
         res.send(result);
       } catch (error) {
         res.status(500).send({ message: "Error creating booking", error });
@@ -244,13 +271,13 @@ async function run() {
     });
 
     // BOOKINGS APIs - DELETE cancel a booking (overriding old endpoint)
-    app.delete("/bookings/:id", verifyFireBaseToken, async (req, res) => {
+    app.delete("/myBbookings/:id", verifyFireBaseToken, async (req, res) => {
       try {
         const id = req.params.id;
         const email = req.token_email;
 
         // First, find the booking to verify ownership
-        const booking = await myBidsCollection.findOne({
+        const booking = await myBookingsCollection.findOne({
           _id: new ObjectId(id),
         });
 
@@ -264,7 +291,7 @@ async function run() {
         }
 
         const query = { _id: new ObjectId(id) };
-        const result = await myBidsCollection.deleteOne(query);
+        const result = await myBookingsCollection.deleteOne(query);
         res.send(result);
       } catch (error) {
         res.status(500).send({ message: "Error deleting booking", error });
