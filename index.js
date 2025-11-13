@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+import { formatISO } from "date-fns";
 require("dotenv").config();
 // const jwt = require('jsonwebtoken');
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
@@ -134,22 +135,6 @@ async function run() {
       res.send(result);
     });
 
-    // app.get("/vehicles/:id", async (req, res) => {
-    //   const id = req.params.id; // string _id
-
-    //   try {
-    //     const vehicle = await vehiclesCollection.findOne({ _id: id }); // query as string
-
-    //     if (!vehicle) {
-    //       return res.status(404).send({ message: "Vehicle not found" });
-    //     }
-
-    //     res.send(vehicle); // send full vehicle object
-    //   } catch (error) {
-    //     console.error("Error fetching vehicle:", error);
-    //     res.status(500).send({ message: "Server error" });
-    //   }
-    // });
     app.get("/vehicles/:id", async (req, res) => {
       const { id } = req.params;
 
@@ -197,7 +182,7 @@ async function run() {
           $set: {
             vehicleName: updatedVehicle.vehicleName,
             owner: updatedVehicle.owner,
-            categories: updatedVehicle.categories, // ✅ fixed key
+            categories: updatedVehicle.categories,
             pricePerDay: updatedVehicle.pricePerDay,
             location: updatedVehicle.location,
             availability: updatedVehicle.availability,
@@ -266,7 +251,7 @@ async function run() {
         }
 
         // Add booking timestamp
-        newBooking.bookingDate = new Date();
+        newBooking.bookingDate = formatISO(new Date());
 
         const result = await myBookingsCollection.insertOne(newBooking);
         res.send(result);
@@ -275,8 +260,8 @@ async function run() {
       }
     });
 
-    // BOOKINGS APIs - DELETE cancel a booking (overriding old endpoint)
-    app.delete("/myBbookings/:id", verifyFireBaseToken, async (req, res) => {
+    // BOOKINGS APIs - DELETE cancel a booking
+    app.delete("/myBookings/:id", verifyFireBaseToken, async (req, res) => {
       try {
         const id = req.params.id;
         const email = req.token_email;
@@ -303,61 +288,6 @@ async function run() {
       }
     });
 
-    // Old endpoints kept for reference (you can remove these if not needed)
-    // app.get("/bookings", verifyJWTToken, async (req, res) => {
-    //   const email = req.query.email;
-    //   const query = {};
-    //   if (email) {
-    //     query.buyer_email = email;
-    //   }
-    //   // verify user have access to see this data
-    //   if (email !== req.token_email) {
-    //     return res.status(403).send({ message: "forbidden access" });
-    //   }
-    //   const cursor = bidsCollection.find(query);
-    //   const result = await cursor.toArray();
-    //   res.send(result);
-    // });
-
-    // bids related apis with firebase token verify
-    // app.get('/bids', logger, verifyFireBaseToken, async (req, res) => {
-    //   console.log('headers', req)
-    //   const email = req.query.email;
-    //   const query = {};
-    //   if (email) {
-    //     if (email !== req.token_email) {
-    //       return res.status(403).send({ message: 'forbidden access' })
-    //     }
-    //     query.buyer_email = email;
-    //   }
-    //   const cursor = bidsCollection.find(query);
-    //   const result = await cursor.toArray();
-    //   res.send(result);
-    // })
-
-    app.get(
-      "/vehicles/bookings/:productId",
-      verifyFireBaseToken,
-      async (req, res) => {
-        const productId = req.params.productId;
-        const query = { product: productId };
-        const cursor = bidsCollection.find(query).sort({ bid_price: -1 });
-        const result = await cursor.toArray();
-        res.send(result);
-      }
-    );
-
-    // app.get('/bids', async (req, res) => {
-    //   const query = {};
-    //   if (query.email) {
-    //     query.buyer_email = email;
-    //   }
-    //   const cursor = bidsCollection.find(query);
-    //   const result = await cursor.toArray();
-    //   res.send(result);
-    // })
-
-    // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
@@ -370,11 +300,3 @@ run().catch(console.dir);
 app.listen(port, () => {
   console.log(`Travel Ease is running on port: ${port}`);
 });
-
-// client.connect()
-//   .then(() => {
-//     app.listen(port, () => {
-//       console.log(`Smart server is running now on port: ${port}`)
-//     })
-//   })
-//   .catch(console.dir)
